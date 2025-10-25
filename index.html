@@ -7,28 +7,67 @@
   <style>
     :root { --bg:#0f1220; --card:#161a2e; --ink:#e8ecf8; --muted:#9aa3c9; --accent:#9ad7ff; }
     *{box-sizing:border-box}
-    html,body{height:100%;margin:0;background:radial-gradient(1200px 800px at 20% 10%, #151a33 0%, #0f1220 55%, #0b0e1a 100%); color:var(--ink); font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    html,body{
+      height:100%;margin:0;
+      background:radial-gradient(1200px 800px at 20% 10%, #151a33 0%, #0f1220 55%, #0b0e1a 100%);
+      color:var(--ink); font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial
+    }
     .wrap{min-height:100%;display:grid;grid-template-rows:auto 1fr auto}
     header{padding:20px 24px;display:flex;gap:14px;align-items:baseline}
     header h1{margin:0;font-weight:800;letter-spacing:.2px;font-size:clamp(20px,2.6vw,28px)}
-    .tag{padding:4px 10px;border-radius:999px;background:linear-gradient(90deg,rgba(154,215,255,.15),rgba(229,186,255,.15));color:var(--accent);font-weight:700;font-size:12px;border:1px solid rgba(154,215,255,.25)}
-    .card{max-width:1100px;margin:0 auto;background:#161a2e;border:1px solid rgba(255,255,255,.06);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.45);overflow:clip;position:relative}
+    .tag{
+      padding:4px 10px;border-radius:999px;
+      background:linear-gradient(90deg,rgba(154,215,255,.15),rgba(229,186,255,.15));
+      color:var(--accent);font-weight:700;font-size:12px;border:1px solid rgba(154,215,255,.25)
+    }
+    .card{
+      max-width:1100px;margin:0 auto;background:#161a2e;
+      border:1px solid rgba(255,255,255,.06);border-radius:20px;
+      box-shadow:0 20px 60px rgba(0,0,0,.45);overflow:clip;position:relative
+    }
     .mapPane{position:relative;min-height:520px}
     #map{width:100%;height:100%}
-    .hud{position:absolute; inset:16px 16px auto auto; background:rgba(17,21,42,.7); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:10px 14px; text-align:right; box-shadow:0 6px 24px rgba(0,0,0,.35)}
+    .hud{
+      position:absolute; inset:16px 16px auto auto;
+      background:rgba(17,21,42,.7); backdrop-filter:blur(8px);
+      border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:10px 14px;
+      text-align:right; box-shadow:0 6px 24px rgba(0,0,0,.35)
+    }
     .big{font-variant-numeric:tabular-nums;font-weight:800;font-size:clamp(28px,5vw,44px);letter-spacing:.5px}
     .sub{color:var(--muted);font-size:12px}
-    .statsBar{position:absolute; left:50%; transform:translateX(-50%); bottom:12px; display:flex; gap:16px; align-items:center;
-      background:rgba(17,21,42,.75); border:1px solid rgba(255,255,255,.08); backdrop-filter: blur(8px); padding:10px 14px; border-radius:999px;
-      font-variant-numeric: tabular-nums; box-shadow:0 6px 24px rgba(0,0,0,.35)}
+
+    /* bottom-center stats */
+    .statsBar{
+      position:absolute; left:50%; transform:translateX(-50%);
+      bottom:12px; display:flex; gap:16px; align-items:center;
+      background:rgba(17,21,42,.75); border:1px solid rgba(255,255,255,.08);
+      backdrop-filter: blur(8px); padding:10px 14px; border-radius:999px;
+      font-variant-numeric: tabular-nums; box-shadow:0 6px 24px rgba(0,0,0,.35)
+    }
     .pill{padding:4px 10px; border-radius:999px; background:rgba(255,255,255,.06); color:var(--ink); font-size:12px}
     .sep{opacity:.25}
-    .tooltip{position:absolute; pointer-events:none; z-index:5; opacity:0; transform: translate(-50%, -120%);
-      background: rgba(17,21,42,.9); color: var(--ink); padding: 8px 10px; border-radius: 10px; border:1px solid rgba(255,255,255,.12);
-      box-shadow: 0 12px 28px rgba(0,0,0,.45); white-space: nowrap; font-size: 12px;}
-    .tooltip .title{font-weight:700} .tooltip .muted{color:var(--muted)}
-    .footer{padding:14px 18px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:space-between;border-top:1px solid rgba(255,255,255,.06);background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,.00))}
+
+    /* tooltip */
+    .tooltip{
+      position:absolute; pointer-events:none; z-index:5; opacity:0;
+      transform: translate(-50%, -120%);
+      background: rgba(17,21,42,.9); color: var(--ink);
+      padding: 8px 10px; border-radius: 10px;
+      border:1px solid rgba(255,255,255,.12);
+      box-shadow: 0 12px 28px rgba(0,0,0,.45);
+      white-space: nowrap; font-size: 12px;
+    }
+    .tooltip .title{font-weight:700}
+    .tooltip .muted{color:var(--muted)}
+
+    .footer{
+      padding:14px 18px;display:flex;gap:16px;flex-wrap:wrap;
+      align-items:center;justify-content:space-between;
+      border-top:1px solid rgba(255,255,255,.06);
+      background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,.00))
+    }
     .badge,.hint{color:var(--muted);font-size:12px}
+
     .geo{fill:#1b2140;stroke:rgba(255,255,255,.08);stroke-width:.5;cursor:pointer}
     .geo:hover{fill:#232a55}
     .ocean{fill:#101636;cursor:pointer}
@@ -44,11 +83,13 @@
     <section class="mapPane">
       <svg id="map" viewBox="0 0 1100 520" preserveAspectRatio="xMidYMid meet" aria-label="World map"></svg>
 
+      <!-- top-right live population -->
       <aside class="hud">
         <div class="big" id="popNum">8,200,000,000</div>
         <div class="sub" id="asOfText">as of …</div>
       </aside>
 
+      <!-- bottom-center live stats -->
       <div class="statsBar" id="statsBar" role="status" aria-live="polite">
         <span class="pill" id="elapsedPill">⏱ 0:00</span>
         <span class="sep">•</span>
@@ -59,27 +100,29 @@
         <span class="pill" id="ratesPill">Rates: +2.2/s (4.2−2.0)</span>
       </div>
 
+      <!-- hover/pinned tooltip -->
       <div class="tooltip" id="tooltip"><span class="title">…</span></div>
     </section>
 
     <footer class="footer">
       <div class="badge">Live estimates; educational/approximate.</div>
-      <div class="hint">Baseline from UN WPP 2024, rates ~2025 US Census brief.</div>
+      <div class="hint">Baseline from UN WPP 2024; rates ~2025 US Census brief.</div>
     </footer>
   </main>
 </div>
 
-<!-- UMD builds -->
+<!-- UMD build -->
 <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 <script>
 (async function(){
   /* ---------- Population model ---------- */
-  const BASELINE_ISO = "2025-10-25T01:00:00Z";
+  const BASELINE_ISO = "2025-10-25T01:00:00Z"; // adjust if you want to snap to a different moment
   const BASELINE_POPULATION = 8253276238;
   const BIRTHS_PER_SEC = 4.2;
   const DEATHS_PER_SEC = 2.0;
   const NET_PER_SEC = BIRTHS_PER_SEC - DEATHS_PER_SEC;
 
+  // lightweight 2025 estimates (extend as you like)
   const POP_2025 = {
     "China": 1413000000, "India": 1429000000, "United States of America": 342000000,
     "Indonesia": 282000000, "Pakistan": 246000000, "Nigeria": 229000000, "Brazil": 217000000,
@@ -126,7 +169,7 @@
   const pageStartMs = Date.now();
 
   asOfText.textContent = "as of " + new Date(BASELINE_ISO).toLocaleString(undefined,{dateStyle:"medium", timeStyle:"short"});
-  ratesPill.textContent = `Rates: +${(NET_PER_SEC).toFixed(1)}/s (${BIRTHS_PER_SEC.toFixed(1)}−${DEATHS_PER_SEC.toFixed(1)})`;
+  ratesPill.textContent = `Rates: +${NET_PER_SEC.toFixed(1)}/s (${BIRTHS_PER_SEC.toFixed(1)}−${DEATHS_PER_SEC.toFixed(1)})`;
 
   function fmtInt(n){ return new Intl.NumberFormat(undefined,{maximumFractionDigits:0}).format(Math.floor(n)); }
   function fmtShort(n){ if (n>=1e9) return (n/1e9).toFixed(n>=10e9?0:1)+"B"; if (n>=1e6) return (n/1e6).toFixed(n>=10e6?0:1)+"M"; return fmtInt(n); }
@@ -150,21 +193,21 @@
   }
   tick(); setInterval(tick, 100);
 
-  /* ---------- Map (GeoJSON with names, no TSV) ---------- */
-  // Two name-carrying GeoJSON mirrors (CORS-friendly):
+  /* ---------- Map (GeoJSON with names, resilient loader) ---------- */
   const GEO_URLS = [
-    "https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson",
-    "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson"
+    "https://geojson.xyz/world/ne_110m_admin_0_countries.geojson", // CORS-friendly
+    "https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson" // sometimes served as text/plain
   ];
 
   async function fetchJsonFrom(urls){
     let lastErr;
     for (const u of urls){
       try{
-        const r = await fetch(u, {cache:"force-cache"});
-        const ct = (r.headers.get("content-type")||"").toLowerCase();
-        if (r.ok && ct.includes("application/json")) return await r.json();
-        lastErr = new Error(`HTTP ${r.status} ${ct}`);
+        const r = await fetch(u, { cache: "force-cache" });
+        if (!r.ok){ lastErr = new Error(`HTTP ${r.status}`); continue; }
+        const text = await r.text();      // accept even if Content-Type is text/plain
+        try { return JSON.parse(text); }  // parse manually
+        catch (e){ lastErr = new Error(`Parse fail from ${u}: ${e.message}`); }
       }catch(e){ lastErr = e; }
     }
     throw lastErr || new Error("Failed to fetch world GeoJSON from all mirrors.");
@@ -184,14 +227,14 @@
 
   try{
     const world = await fetchJsonFrom(GEO_URLS);
-    // harmonize property names across sources
+    // Harmonize property names across sources
     const features = (world.features || []).map(f=>{
       const p = f.properties || {};
       const name = p.name || p.ADMIN || p.ADMIN_NAME || p.NAME_EN || p.Country || "Unknown";
       return Object.assign({}, f, { properties: Object.assign({}, p, { __name: name }) });
     });
 
-    const countryPaths = svg.append("g")
+    svg.append("g")
       .selectAll("path")
       .data(features)
       .join("path")
@@ -210,8 +253,9 @@
     function showTooltip(name, x, y){
       const p = lookupPop(name);
       ttTitle.textContent = name;
-      ttLine.textContent = (name === "🌊 Oceans") ? "No population" :
-        (p ? `2025 est: ${fmtShort(p)} (${new Intl.NumberFormat().format(p)})` : "2025 est: (no estimate yet)");
+      ttLine.textContent = (name === "🌊 Oceans")
+        ? "No population"
+        : (p ? `2025 est: ${fmtShort(p)} (${new Intl.NumberFormat().format(p)})` : "2025 est: (no estimate yet)");
       tooltip.style.left = x + "px";
       tooltip.style.top  = y + "px";
       tooltip.style.opacity = 1;
