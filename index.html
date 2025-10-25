@@ -195,8 +195,17 @@
 
   /* ---------- Map (GeoJSON with names, resilient loader) ---------- */
   const GEO_URLS = [
-    "https://geojson.xyz/world/ne_110m_admin_0_countries.geojson", // CORS-friendly
-    "https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson" // sometimes served as text/plain
+    // If you self-host a copy (best): add it to your repo as /assets/world.geojson,
+    // then uncomment the next line and move it to the top of the list.
+    // "/assets/world.geojson",
+
+    // GitHub mirrors (served as text/plain but parseable)
+    "https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson",
+    "https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json",
+    "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson",
+
+    // Keep geojson.xyz last due to occasional 403s
+    "https://geojson.xyz/world/ne_110m_admin_0_countries.geojson"
   ];
 
   async function fetchJsonFrom(urls){
@@ -204,11 +213,20 @@
     for (const u of urls){
       try{
         const r = await fetch(u, { cache: "force-cache" });
-        if (!r.ok){ lastErr = new Error(`HTTP ${r.status}`); continue; }
-        const text = await r.text();      // accept even if Content-Type is text/plain
-        try { return JSON.parse(text); }  // parse manually
-        catch (e){ lastErr = new Error(`Parse fail from ${u}: ${e.message}`); }
-      }catch(e){ lastErr = e; }
+        if (!r.ok) { console.warn("Geo fetch failed:", u, r.status); lastErr = new Error(`HTTP ${r.status}`); continue; }
+        const txt = await r.text();
+        try {
+          const data = JSON.parse(txt);
+          console.log("Geo loaded from:", u);
+          return data;
+        } catch (e) {
+          console.warn("Parse failed from:", u, e.message);
+          lastErr = e; continue;
+        }
+      } catch(e){
+        console.warn("Request error from:", u, e.message);
+        lastErr = e; continue;
+      }
     }
     throw lastErr || new Error("Failed to fetch world GeoJSON from all mirrors.");
   }
@@ -244,9 +262,10 @@
 
     /* ----- tooltip + pin ----- */
     let pinned = null;
+    const tooltipEl = document.getElementById("tooltip");
     const ttTitle = document.createElement("div"); ttTitle.className="title";
     const ttLine  = document.createElement("div"); ttLine.className="muted";
-    tooltip.innerHTML=""; tooltip.appendChild(ttTitle); tooltip.appendChild(ttLine);
+    tooltipEl.innerHTML=""; tooltipEl.appendChild(ttTitle); tooltipEl.appendChild(ttLine);
 
     function lookupPop(name){ const canon = ALIAS[name] || name; return POP_2025[canon]; }
 
@@ -256,11 +275,11 @@
       ttLine.textContent = (name === "🌊 Oceans")
         ? "No population"
         : (p ? `2025 est: ${fmtShort(p)} (${new Intl.NumberFormat().format(p)})` : "2025 est: (no estimate yet)");
-      tooltip.style.left = x + "px";
-      tooltip.style.top  = y + "px";
-      tooltip.style.opacity = 1;
+      tooltipEl.style.left = x + "px";
+      tooltipEl.style.top  = y + "px";
+      tooltipEl.style.opacity = 1;
     }
-    const hideTooltip = ()=>{ if (!pinned) tooltip.style.opacity = 0; };
+    const hideTooltip = ()=>{ if (!pinned) tooltipEl.style.opacity = 0; };
 
     function clampToPane(ev){
       const rect = mapPane.getBoundingClientRect();
@@ -318,7 +337,7 @@
     warn.style.position="absolute"; warn.style.left="16px"; warn.style.bottom="16px";
     warn.style.padding="10px 12px"; warn.style.background="rgba(255,75,75,.12)";
     warn.style.border="1px solid rgba(255,75,75,.4)"; warn.style.borderRadius="10px"; warn.style.color="#ffbdbd";
-    warn.textContent="Could not load world GeoJSON (CORS/network).";
+    warn.textContent="Could not load world GeoJSON (CORS/network). Consider self-hosting /assets/world.geojson.";
     document.querySelector(".mapPane").appendChild(warn);
   }
 })();
