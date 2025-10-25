@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>World Map + Live Population Counter (Cozy Edition)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0f1220; --card: #161a2e; --ink: #e8ecf8; --muted: #9aa3c9;
+      --accent: #9ad7ff;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:radial-gradient(1200px 800px at 20% 10%, #151a33 0%, #0f1220 55%, #0b0e1a 100%); color:var(--ink); font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    .wrap{min-height:100%;display:grid;grid-template-rows:auto 1fr auto}
+    header{padding:20px 24px;display:flex;gap:14px;align-items:baseline}
+    header h1{margin:0;font-weight:800;letter-spacing:.2px;font-size:clamp(20px,2.6vw,28px)}
+    .tag{padding:4px 10px;border-radius:999px;background:linear-gradient(90deg,rgba(154,215,255,.15),rgba(229,186,255,.15));color:var(--accent);font-weight:700;font-size:12px;border:1px solid rgba(154,215,255,.25)}
+    .card{max-width:1100px;margin:0 auto;background:#161a2e;border:1px solid rgba(255,255,255,.06);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.45);overflow:clip;position:relative}
+    .mapPane{position:relative;min-height:520px}
+    #map{width:100%;height:100%}
+    .hud{position:absolute; inset:16px 16px auto auto; background:rgba(17,21,42,.7); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:10px 14px; text-align:right; box-shadow:0 6px 24px rgba(0,0,0,.35)}
+    .big{font-variant-numeric:tabular-nums;font-weight:800;font-size:clamp(28px,5vw,44px);letter-spacing:.5px}
+    .sub{color:var(--muted);font-size:12px}
+
+    /* bottom-center stats bar */
+    .statsBar{
+      position:absolute; left:50%; transform:translateX(-50%);
+      bottom:12px; display:flex; gap:16px; align-items:center;
+      background:rgba(17,21,42,.75); border:1px solid rgba(255,255,255,.08);
+      backdrop-filter: blur(8px); padding:10px 14px; border-radius:999px;
+      font-variant-numeric: tabular-nums;
+      box-shadow:0 6px 24px rgba(0,0,0,.35);
+    }
+    .pill{padding:4px 10px; border-radius:999px; background:rgba(255,255,255,.06); color:var(--ink); font-size:12px}
+    .sep{opacity:.25}
+
+    /* tooltip */
+    .tooltip{
+      position:absolute; pointer-events:none; z-index:5; opacity:0;
+      transform: translate(-50%, -120%);
+      background: rgba(17,21,42,.9); color: var(--ink);
+      padding: 8px 10px; border-radius: 10px;
+      border:1px solid rgba(255,255,255,.12);
+      box-shadow: 0 12px 28px rgba(0,0,0,.45);
+      white-space: nowrap; font-size: 12px;
+    }
+    .tooltip .title{font-weight:700}
+    .tooltip .muted{color:var(--muted)}
+
+    .footer{padding:14px 18px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:space-between;border-top:1px solid rgba(255,255,255,.06);background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,.00))}
+    .badge,.hint{color:var(--muted);font-size:12px}
+
+    .geo{fill:#1b2140;stroke:rgba(255,255,255,.08);stroke-width:.5;cursor:pointer}
+    .geo:hover{fill:#232a55}
+    .ocean{fill:#101636;cursor:pointer}
+    .ocean:hover{fill:#12204a}
+    .pin-outline{stroke:#9ad7ff; stroke-width:1.5; fill:none; pointer-events:none}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Global Cozy Index: <span class="tag">Population Clock</span></h1>
+  </header>
+
+  <main class="card">
+    <section class="mapPane">
+      <svg id="map" viewBox="0 0 1100 520" preserveAspectRatio="xMidYMid meet" aria-label="World map"></svg>
+
+      <!-- top-right live population -->
+      <aside class="hud">
+        <div class="big" id="popNum">8,200,000,000</div>
+        <div class="sub" id="asOfText">as of …</div>
+      </aside>
+
+      <!-- bottom-center live stats -->
+      <div class="statsBar" id="statsBar" role="status" aria-live="polite">
+        <span class="pill" id="elapsedPill">⏱ 0:00</span>
+        <span class="sep">•</span>
+        <span class="pill" id="birthsPill">👶 Births: 0</span>
+        <span class="pill" id="deathsPill">🕊 Deaths: 0</span>
+        <span class="pill" id="netPill">➕ Net: +0</span>
+        <span class="sep">•</span>
+        <span class="pill" id="ratesPill">Rates: +2.2/s (4.2−2.0)</span>
+      </div>
+
+      <!-- hover/pinned tooltip -->
+      <div class="tooltip" id="tooltip"><span class="title">…</span></div>
+    </section>
+
+    <footer class="footer">
+      <div class="badge">Live estimates; educational/approximate.</div>
+      <div class="hint">Baseline from UN WPP 2024, rates ~2025 US Census brief.</div>
+    </footer>
+  </main>
+</div>
+
+<!-- UMD builds: no bundler/modules needed -->
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+<script>
+(async function(){
+  // ---- Population model (editable) ----
+  const BASELINE_ISO = "2025-10-25T01:00:00Z";         // Oct 24, 2025 6:00 PM PDT
+  const BASELINE_POPULATION = 8253276238;              // starting population at baseline
+  const BIRTHS_PER_SEC = 4.2;
+  const DEATHS_PER_SEC = 2.0;
+  const NET_PER_SEC = BIRTHS_PER_SEC - DEATHS_PER_SEC;
+
+  // Minimal 2025 est. dataset (name -> people). Add/adjust freely.
+  // Names follow world-atlas TSV (“United States of America”, “Russian Federation”, etc.).
+  const POP_2025 = {
+    "China": 1413000000, "India": 1429000000, "United States of America": 342000000,
+    "Indonesia": 282000000, "Pakistan": 246000000, "Nigeria": 229000000,
+    "Brazil": 217000000, "Bangladesh": 173000000, "Russian Federation": 145000000,
+    "Mexico": 132000000, "Japan": 123000000, "Ethiopia": 132000000,
+    "Philippines": 118000000, "Egypt": 113000000, "Vietnam": 100000000,
+    "DR Congo": 111000000, "Turkey": 87900000, "Iran": 89100000,
+    "Germany": 84000000, "Thailand": 71900000, "United Kingdom": 69200000,
+    "France": 68300000, "Italy": 58800000, "South Africa": 61700000,
+    "Tanzania": 70000000, "Kenya": 56100000, "Spain": 48200000,
+    "Argentina": 46300000, "Colombia": 52500000, "Canada": 41700000,
+    "Ukraine": 37200000, "Poland": 38200000, "Saudi Arabia": 36000000,
+    "Australia": 26800000, "Morocco": 38100000, "Iraq": 46000000,
+    "Afghanistan": 42000000, "Algeria": 45600000, "Sudan": 49000000,
+    "Myanmar": 54700000, "South Korea": 51200000, "Nepal": 30700000,
+    "Venezuela": 28700000, "Peru": 34100000, "Malaysia": 34600000,
+    "Ghana": 34000000, "Uzbekistan": 35200000, "Yemen": 35000000,
+    "Mozambique": 35000000, "Madagascar": 31600000, "Angola": 36500000,
+    "Cameroon": 29000000, "Côte d’Ivoire": 30000000, "Niger": 28000000,
+    "Netherlands": 17800000, "Chile": 19700000, "Romania": 19000000,
+    "Kazakhstan": 20000000, "Greece": 10300000, "Portugal": 10300000,
+    "Sweden": 10500000, "Norway": 5500000, "Denmark": 6000000,
+    "Finland": 5600000, "New Zealand": 5300000, "Czechia": 10700000,
+    "Belgium": 11800000, "Switzerland": 9000000, "Austria": 9100000,
+    "Israel": 9900000, "United Arab Emirates": 10000000, "Qatar": 3000000,
+    "Singapore": 5900000, "Hong Kong": 7400000, "Taiwan": 23200000,
+    "Ireland": 5600000, "Hungary": 9600000, "Bulgaria": 6600000,
+    "Serbia": 6600000, "Croatia": 3900000, "Slovakia": 5400000,
+    "Lithuania": 2800000, "Latvia": 1800000, "Estonia": 1300000,
+    "Iceland": 400000, "Luxembourg": 660000, "Malta": 560000
+  };
+  // optional aliases to improve matching
+  const ALIAS = {
+    "Congo, Dem. Rep.": "DR Congo",
+    "Congo, Democratic Republic of the": "DR Congo",
+    "Czech Republic": "Czechia",
+    "Korea, South": "South Korea",
+    "Korea, Rep.": "South Korea",
+    "United States": "United States of America",
+    "Russian Federation": "Russian Federation",
+    "Cote d'Ivoire": "Côte d’Ivoire"
+  };
+
+  // DOM refs
+  const popNum = document.getElementById("popNum");
+  const asOfText = document.getElementById("asOfText");
+  const elapsedPill = document.getElementById("elapsedPill");
+  const birthsPill = document.getElementById("birthsPill");
+  const deathsPill = document.getElementById("deathsPill");
+  const netPill = document.getElementById("netPill");
+  const ratesPill = document.getElementById("ratesPill");
+  const tooltip = document.getElementById("tooltip");
+  const mapPane = document.querySelector(".mapPane");
+
+  // Baseline + page start for "since open" counters
+  const baselineMs = Date.parse(BASELINE_ISO);
+  const pageStartMs = Date.now();
+
+  // HUD static labels
+  asOfText.textContent = "as of " + new Date(BASELINE_ISO).toLocaleString(undefined,{dateStyle:"medium", timeStyle:"short"});
+  ratesPill.textContent = `Rates: +${(NET_PER_SEC).toFixed(1)}/s (${BIRTHS_PER_SEC.toFixed(1)}−${DEATHS_PER_SEC.toFixed(1)})`;
+
+  // Live updates
+  function fmtInt(n){ return new Intl.NumberFormat(undefined,{maximumFractionDigits:0}).format(Math.floor(n)); }
+  function fmtShort(n){
+    if (n >= 1e9) return (n/1e9).toFixed(n>=10e9?0:1) + "B";
+    if (n >= 1e6) return (n/1e6).toFixed(n>=10e6?0:1) + "M";
+    return fmtInt(n);
+  }
+  function fmtElapsed(ms){
+    const s = Math.floor(ms/1000);
+    const m = Math.floor(s/60);
+    const r = s%60;
+    return `${m}:${String(r).padStart(2,'0')}`;
+  }
+
+  function tick(){
+    const now = Date.now();
+    // Global population from baseline
+    const elapsedFromBaseline = (now - baselineMs)/1000;
+    const current = BASELINE_POPULATION + elapsedFromBaseline * NET_PER_SEC;
+    popNum.textContent = fmtInt(current);
+
+    // Since-page-open stats
+    const elapsedMs = now - pageStartMs;
+    const secs = elapsedMs/1000;
+    const births = secs * BIRTHS_PER_SEC;
+    const deaths = secs * DEATHS_PER_SEC;
+    const net = births - deaths;
+
+    elapsedPill.textContent = `⏱ ${fmtElapsed(elapsedMs)}`;
+    birthsPill.textContent = `👶 Births: ${fmtInt(births)}`;
+    deathsPill.textContent = `🕊 Deaths: ${fmtInt(deaths)}`;
+    netPill.textContent = `➕ Net: ${net>=0?'+':''}${fmtInt(net)}`;
+  }
+  tick();
+  setInterval(tick, 100);
+
+  // ---- Map render with D3 ----
+  const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+  const NAMES_URLS = [
+    "https://unpkg.com/world-atlas@2/countries-110m.tsv",
+    "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.tsv"
+  ];
+
+  async function fetchTextFrom(urls){
+    let lastErr;
+    for (const u of urls){
+      try {
+        const r = await fetch(u, {cache:"force-cache"});
+        const ct = (r.headers.get("content-type")||"").toLowerCase();
+        if (r.ok && (ct.includes("text/tab-separated-values") || ct.includes("text/plain"))) {
+          return await r.text();
+        }
+        lastErr = new Error(`HTTP ${r.status} ${ct}`);
+      } catch(e){ lastErr = e; }
+    }
+    throw lastErr || new Error("Failed to fetch from any URL");
+  }
+
+  const svg = d3.select("#map");
+  const width = 1100, height = 520;
+
+  const projection = d3.geoNaturalEarth1().fitSize([width, height], {type:"Sphere"});
+  const path = d3.geoPath(projection);
+
+  // Ocean (Sphere) + outline (used for pin highlight)
+  const oceanPath = svg.append("path")
+     .attr("d", path({type:"Sphere"}))
+     .attr("class","ocean")
+     .attr("data-name","🌊 Oceans");
+
+  const pinOutline = svg.append("path").attr("class", "pin-outline").style("display","none");
+
+  try {
+    const [topoResp, namesTsv] = await Promise.all([
+      fetch(GEO_URL, {cache:"force-cache"}),
+      fetchTextFrom(NAMES_URLS)
+    ]);
+
+    const topoCT = (topoResp.headers.get("content-type")||"").toLowerCase();
+    if (!topoResp.ok || !topoCT.includes("application/json")) {
+      const t = await topoResp.text();
+      console.error("TopoJSON load fail:", topoResp.status, topoCT, t.slice(0,200));
+      throw new Error("Could not load world topojson (see console).");
+    }
+
+    const topo = await topoResp.json();
+    const nameById = new Map();
+    namesTsv.trim().split("\n").forEach(line=>{
+      const [idStr, name] = line.split("\t");
+      if (idStr && name) nameById.set(+idStr, name);
+    });
+
+    const countries = topojson.feature(topo, topo.objects.countries);
+
+    const countryPaths = svg.append("g")
+       .selectAll("path")
+       .data(countries.features)
+       .join("path")
+       .attr("class","geo")
+       .attr("d", path)
+       .attr("data-id", d=>d.id)
+       .attr("data-name", d=>{
+          const nm = nameById.get(+d.id) || "Unknown";
+          return nm;
+       });
+
+    // --- Tooltip helpers ---
+    let pinned = null; // {name, x, y, d?}
+    const ttTitle = document.createElement("div");
+    ttTitle.className = "title";
+    const ttLine = document.createElement("div");
+    ttLine.className = "muted";
+    tooltip.innerHTML = "";
+    tooltip.appendChild(ttTitle);
+    tooltip.appendChild(ttLine);
+
+    function lookupPop(name){
+      const canon = ALIAS[name] || name;
+      return POP_2025[canon];
+    }
+
+    function showTooltip(name, x, y){
+      const p = lookupPop(name);
+      ttTitle.textContent = name;
+      ttLine.textContent = (name === "🌊 Oceans") ? "No population" :
+        (p ? `2025 est: ${fmtShort(p)} (${new Intl.NumberFormat().format(p)})` : "2025 est: (no estimate yet)");
+      tooltip.style.left = x + "px";
+      tooltip.style.top = y + "px";
+      tooltip.style.opacity = 1;
+    }
+    const hideTooltip = ()=>{ if (!pinned) tooltip.style.opacity = 0; };
+
+    function clampToPane(ev){
+      const rect = mapPane.getBoundingClientRect();
+      const x = Math.max(rect.left+20, Math.min(ev.clientX, rect.right-20));
+      const y = Math.max(rect.top+20, Math.min(ev.clientY, rect.bottom-20));
+      return { x: x - rect.left, y: y - rect.top };
+    }
+
+    function handleMove(ev){
+      if (pinned) return; // ignore move while pinned
+      const target = ev.target;
+      let name = null;
+      if (target.classList.contains("geo") || target.classList.contains("ocean")){
+        name = target.getAttribute("data-name") || (target.classList.contains("ocean") ? "🌊 Oceans" : null);
+      }
+      const {x,y} = clampToPane(ev);
+      if (name){ showTooltip(name, x, y); } else { hideTooltip(); }
+    }
+
+    function setPinOutline(dOrSphere){
+      if (!dOrSphere){ pinOutline.style("display","none"); return; }
+      pinOutline.attr("d", path(dOrSphere)).style("display","block");
+    }
+
+    function handleClick(ev){
+      const target = ev.target;
+      const {x,y} = clampToPane(ev);
+
+      // Unpin if clicking empty space
+      if (!(target.classList.contains("geo") || target.classList.contains("ocean"))){
+        pinned = null; hideTooltip(); setPinOutline(null); return;
+      }
+
+      const name = target.getAttribute("data-name") || (target.classList.contains("ocean") ? "🌊 Oceans" : null);
+      if (!name) return;
+
+      // Toggle pin: if already pinned to this name, unpin; else pin here
+      if (pinned && pinned.name === name){
+        pinned = null; hideTooltip(); setPinOutline(null);
+      } else {
+        pinned = { name, x, y };
+        showTooltip(name, x, y);
+        if (name === "🌊 Oceans"){ setPinOutline({type:"Sphere"}); }
+        else {
+          // find the datum for outline
+          const node = target.__data__;
+          setPinOutline(node);
+        }
+      }
+    }
+
+    // Unpin with Esc
+    window.addEventListener("keydown", (e)=>{
+      if (e.key === "Escape"){ pinned = null; hideTooltip(); setPinOutline(null); }
+    });
+
+    // Attach handlers
+    svg.on("mousemove", handleMove);
+    svg.on("mouseleave", hideTooltip);
+    svg.on("click", handleClick);
+    oceanPath.on("mousemove", handleMove);
+    oceanPath.on("mouseleave", hideTooltip);
+    oceanPath.on("click", handleClick);
+
+  } catch (e) {
+    console.error(e);
+    const warn = document.createElement("div");
+    warn.style.position = "absolute";
+    warn.style.left = "16px";
+    warn.style.bottom = "16px";
+    warn.style.padding = "10px 12px";
+    warn.style.background = "rgba(255, 75, 75, .12)";
+    warn.style.border = "1px solid rgba(255, 75, 75, .4)";
+    warn.style.borderRadius = "10px";
+    warn.style.color = "#ffbdbd";
+    warn.textContent = "Could not load map/name data. Check your internet or a network blocker.";
+    document.querySelector(".mapPane").appendChild(warn);
+  }
+})();
+</script>
+</body>
+</html>
